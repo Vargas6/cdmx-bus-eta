@@ -1,0 +1,25 @@
+{
+  "features": [
+    "distance_to_next_stop_m",
+    "progress_pct",
+    "hour_decimal",
+    "route_id",
+    "next_stop_id"
+  ],
+  "train_samples": 42992,
+  "test_samples": 10749,
+  "train_end": "2026-09-29 11:10:32-06:00",
+  "test_start": "2026-09-29 11:10:32-06:00",
+  "baseline": {
+    "mae": 0.6666032688334458,
+    "rmse": 1.0696506490006146,
+    "r2": 0.24912459583921132
+  },
+  "model": {
+    "mae": 0.5034530199675119,
+    "rmse": 0.7187015320612998,
+    "r2": 0.6610145154508835
+  },
+  "mae_improvement_pct": 24.474864809986073,
+  "global_minutes_per_meter": 0.004552979794290906
+}

@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+__pycache__/
+.venv/
+node_modules/
+dist/
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
