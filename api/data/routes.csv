@@ -1,0 +1,90 @@
+route_id,route_short_name,route_long_name,route_color,route_text_color
+19429,3,L03d03-1 tenayuca - la raza,7A9A01,FFFFFF
+19430,3,L03d03-2 la raza - tenayuca,7A9A01,FFFFFF
+19455,3,L03d02-1 tenayuca - buenavista,7A9A01,FFFFFF
+19456,3,L03d02-2 buenavista - tenayuca,7A9A01,FFFFFF
+19457,3,L03d04-1 tenayuca - balderas,7A9A01,FFFFFF
+19458,3,L03d04-2 balderas - tenayuca,7A9A01,FFFFFF
+19459,3,L03d05-1 tenayuca - pueblo sta. cruz atoyac,7A9A01,FFFFFF
+19460,3,L03d05-2 pueblo sta. cruz atoyac  - tenayuca,7A9A01,FFFFFF
+19470,6,L06g01-1 villa de aragón - el rosario,E44599,FFFFFF
+19471,6,L06g01-2 el rosario - villa de aragón,E44599,FFFFFF
+19473,6,L06g02-1 villa de aragón - ipn,E44599,FFFFFF
+19472,6,L06g02-2 ipn - villa de aragón,E44599,FFFFFF
+19474,6,L06g03-1 dep. 18 de marzo - el rosario,E44599,FFFFFF
+19475,6,L06g03-2 el rosario- dep. 18 de marzo,E44599,FFFFFF
+19492,1,L01a01-1 indios verdes - dr. gálvez,D40D0D,FFFFFF
+19491,1,L01a01-2 dr. gálvez - indios verdes,D40D0D,FFFFFF
+19494,1,L01a02-1 indios verdes - insurgentes,D40D0D,FFFFFF
+19493,1,L01a02-2 insurgentes - indios verdes,D40D0D,FFFFFF
+19497,1,L01a03-1 buenavista - el caminero,D40D0D,FFFFFF
+19498,1,L01a03-2 el caminero - buenavista,D40D0D,FFFFFF
+19499,1,L01a07-1 indios verdes - el caminero,D40D0D,FFFFFF
+19500,1,L01a07-2 el caminero - indios verdes,D40D0D,FFFFFF
+19515,4,L04e02-1 buenavista - san lázaro ote,FF9A03,FFFFFF
+19516,4,L04e02-2 san lázaro ote - buenavista,FF9A03,FFFFFF
+19517,4,L04e08-1 buenavista - san lázaro pte,FF9A03,FFFFFF
+19518,4,L04e08-2 san lázaro pte - buenavista,FF9A03,FFFFFF
+19519,4,L04e04-1 pantitlán - hidalgo,FF9A03,FFFFFF
+19520,4,L04e04-2 hidalgo - pantitlán,FF9A03,FFFFFF
+19522,4,L04e05-1 alameda ote - hidalgo,FF9A03,FFFFFF
+19523,4,L04e05-2 hidalgo - alameda ote,FF9A03,FFFFFF
+19553,5,L05f01-2 san lázaro nte - río de los remedios,141982,FFFFFF
+19555,5,L05f02-2 las bombas - san lázaro sur,141982,FFFFFF
+19556,5,L05f04-1 san lázaro sur - preparatoria 1,141982,FFFFFF
+19557,5,L05f04-2 preparatoria 1 - san lázaro sur,141982,FFFFFF
+19559,5,L05f05-1 río de los remedios - preparatoria 1,141982,FFFFFF
+19558,5,L05f05-2 preparatoria 1 - río de los remedios,141982,FFFFFF
+19563,2,L02c01-1 tepalcates - tacubaya,8D1A96,FFFFFF
+19562,2,L02c01-2 tacubaya - tepalcates,8D1A96,FFFFFF
+19564,2,L02c02-1 tepalcates - etiopía l3,8D1A96,FFFFFF
+19565,2,L02c02-2 etiopía l3 - tepalcates,8D1A96,FFFFFF
+19566,2,L02c03-1 tepalcates - col. del valle,8D1A96,FFFFFF
+19567,2,L02c03-2 col. del valle - tepalcates,8D1A96,FFFFFF
+19576,7,L07h01-1 indios verdes - campo marte,116633,FFFFFF
+19577,7,L07h01-2 campo marte - indios verdes,116633,FFFFFF
+19578,7,L07h02-1 hospital infantil - campo marte,116633,FFFFFF
+19579,7,L07h02-2 campo marte - hospital infantil,116633,FFFFFF
+19582,7,L07h04-1 indios verdes - la diana,116633,FFFFFF
+19583,7,L07h04-2 la diana - indios verdes,116633,FFFFFF
+19584,7,L07h08-1 indios verdes - hamburgo,116633,FFFFFF
+26882,1,L01a51-1 colonia del valle - dr. gálvez,D40D0D,FFFFFF
+26884,1,L01a52-2 insurgentes oriente - buenavista sur,D40D0D,FFFFFF
+26885,1,L01a53-1 colonia del valle - el caminero,D40D0D,FFFFFF
+26888,1,L01a54-1 ciudad universitaria- el caminero,D40D0D,FFFFFF
+26889,2,L02c51-1 río frio - colonia del valle,8D1A96,FFFFFF
+26890,2,L02c51-2 colonia del valle - del moral,8D1A96,FFFFFF
+26891,2,L02c50-1 río frio - tacubaya,8D1A96,FFFFFF
+26892,2,L02c50-2 tacubaya - del moral,8D1A96,FFFFFF
+26895,3,L03d51-1 jupiter - buenavista l3 norte,7A9A01,FFFFFF
+26899,3,L03d53-1 júpiter - pueblo sta. cruz atoyac,7A9A01,FFFFFF
+26901,5,L05f50-1 vasco de quiroga - san lázaro nte,141982,FFFFFF
+26903,5,L05f51-1 la virgen - preparatoria 1,141982,FFFFFF
+26906,7,L07h51-2 hamburgo - garibaldi,116633,FFFFFF
+26908,5,L05f52-1 las bombas - preparatoria 1,141982,FFFFFF
+26909,7,L07h50-1 garrido - campo marte,116633,FFFFFF
+27054,4,L04e10-1 amajac - aicm,FF9A03,FFFFFF
+27055,4,L04e10-2 aicm- amajac,FF9A03,FFFFFF
+27056,4,L04e11-1 buenavista - aicm,FF9A03,FFFFFF
+27057,4,L04e11-2 aicm - buenavista,FF9A03,FFFFFF
+19909,7,L07h10-1 garibaldi - campo marte,116633,FFFFFF
+19908,7,L07h10-2 campo marte - garibaldi,116633,FFFFFF
+19957,7,L07h06-1 hospital infantil - la diana,116633,FFFFFF
+19956,7,L07h06-2 la diana - hospital infantil,116633,FFFFFF
+19958,7,L07h05-1 indios verdes - la diana,116633,FFFFFF
+19959,7,L07h05-2 la diana - indios verdes,116633,FFFFFF
+19984,1,L21c21-1 rojo gómez - dr. gálvez,42A76B,FFFFFF
+19983,1,L21c21-2 dr. gálvez - rojo gómez,42A76B,FFFFFF
+19997,1,L01a05-1 indios verdes - col. del valle,D40D0D,FFFFFF
+20016,1,L01a21-1 tepalcates - col. del valle,D40D0D,FFFFFF
+20015,1,L01a21-2 col. del valle - tepalcates,D40D0D,FFFFFF
+20211,5,L05f03-1 río de los remedios - las bombas,141982,FFFFFF
+20212,5,L05f03-2 las bombas - río de los remedios,141982,FFFFFF
+20264,2,L72h72-1 alameda tacubaya - parís,42A76B,FFFFFF
+20263,2,L72h72-2 parís - alameda tacubaya,42A76B,FFFFFF
+20295,1,L31a31-1 indios verdes - pueblo sta cruz atoyac,42A76B,FFFFFF
+20296,1,L31a31-2 pueblo sta cruz atoyac - indios verdes,42A76B,FFFFFF
+20439,2,L72h73-1 alameda tacubaya - glorieta cuitláhuac sur.,42A76B,FFFFFF
+20440,2,L72h73-2 glorieta cuitláhuac sur - alameda tacubaya,42A76B,FFFFFF
+27371,4,L04e12-1 terminal 2 - terminal 1,FF9A03,FFFFFF
+27372,4,L04e12-2 terminal 1 - terminal 2,FF9A03,FFFFFF
