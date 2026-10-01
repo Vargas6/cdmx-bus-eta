@@ -1,20 +1,26 @@
 from pathlib import Path
 import os
 import pickle
+import re
 
 import pandas as pd
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 from pydantic import BaseModel
+
 from api.realtime_service import get_live_vehicles
+
 
 # ==================================================
 # RUTAS DEL PROYECTO
 # ==================================================
 
 ROOT = Path(__file__).resolve().parents[1]
-DATA = ROOT / "api" / "data"   
+
+DATA = ROOT / "api" / "data"
+
 MODEL_PATH = ROOT / "api" / "models" / "eta_model.pkl"
 
 
@@ -52,6 +58,22 @@ app = FastAPI(
         "de llegada de Metrobús CDMX."
     ),
     version="0.1.0",
+)
+
+
+# ==================================================
+# CORS
+# ==================================================
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -102,11 +124,141 @@ class ChatRequest(BaseModel):
 
 
 # ==================================================
+# CONFIGURACIÓN DEL ASISTENTE
+# ==================================================
+
+OUT_OF_SCOPE_MESSAGE = (
+    "Solo puedo ayudarte con consultas relacionadas con "
+    "CDMX Bus ETA, Metrobús CDMX, las rutas del proyecto, "
+    "unidades disponibles, próximas paradas y estimaciones "
+    "de llegada."
+)
+
+
+# Palabras y expresiones directamente relacionadas
+# con el dominio del proyecto.
+PROJECT_TERMS = [
+    "metrobus",
+    "metrobús",
+    "ruta",
+    "rutas",
+    "unidad",
+    "unidades",
+    "autobus",
+    "autobús",
+    "camion",
+    "camión",
+    "parada",
+    "paradas",
+    "eta",
+    "llegada",
+    "llegar",
+    "tiempo",
+    "tarda",
+    "tardar",
+    "distancia",
+    "avance",
+    "gtfs",
+    "gtfs-rt",
+    "realtime",
+    "tiempo real",
+    "transporte",
+    "cdmx",
+    "bus",
+    "modelo",
+    "machine learning",
+    "prediccion",
+    "predicción",
+    "estimacion",
+    "estimación",
+    "mapa",
+    "ubicacion",
+    "ubicación",
+    "siguiente",
+    "proxima",
+    "próxima",
+    "cerca",
+    "cercana",
+    "cercano",
+]
+
+
+# Preguntas cortas que tienen sentido cuando ya existe
+# una ruta seleccionada.
+CONTEXTUAL_TERMS = [
+    "cuanto falta",
+    "cuánto falta",
+    "cuanto tarda",
+    "cuánto tarda",
+    "cual llega",
+    "cuál llega",
+    "cual esta",
+    "cuál está",
+    "donde esta",
+    "dónde está",
+    "hay alguna",
+    "hay uno",
+    "hay una",
+    "que sigue",
+    "qué sigue",
+    "mas cerca",
+    "más cerca",
+    "primero",
+]
+
+
+def normalize_text(text: str) -> str:
+    """
+    Normaliza texto para realizar una validación básica
+    del dominio del chatbot.
+    """
+
+    return re.sub(
+        r"\s+",
+        " ",
+        text.lower().strip(),
+    )
+
+
+def is_project_question(
+    message: str,
+    route_id: str | None = None,
+) -> bool:
+    """
+    Filtro preliminar.
+
+    No pretende comprender lenguaje natural por completo.
+    Su función es bloquear preguntas evidentemente ajenas
+    al proyecto antes de realizar una llamada a OpenAI.
+    """
+
+    normalized = normalize_text(message)
+
+    if not normalized:
+        return False
+
+    if any(
+        term in normalized
+        for term in PROJECT_TERMS
+    ):
+        return True
+
+    if route_id and any(
+        term in normalized
+        for term in CONTEXTUAL_TERMS
+    ):
+        return True
+
+    return False
+
+
+# ==================================================
 # HEALTH CHECK
 # ==================================================
 
 @app.get("/health")
 def health():
+
     return {
         "status": "ok",
         "model_loaded": True,
@@ -273,7 +425,21 @@ def predict_eta(request: ETARequest):
 def chat(request: ChatRequest):
 
     # --------------------------------------------------
-    # 1. Obtener información REAL del sistema
+    # 1. Validar que la pregunta pertenezca al proyecto
+    # --------------------------------------------------
+
+    if not is_project_question(
+        request.message,
+        request.route_id,
+    ):
+        return {
+            "answer": OUT_OF_SCOPE_MESSAGE,
+            "realtime_count": 0,
+            "out_of_scope": True,
+        }
+
+    # --------------------------------------------------
+    # 2. Obtener información REAL del sistema
     # --------------------------------------------------
 
     try:
@@ -281,15 +447,18 @@ def chat(request: ChatRequest):
             route_id=request.route_id,
             limit=10,
         )
+
     except Exception as exc:
+
         print(
             "Error obteniendo información realtime:",
             type(exc).__name__,
         )
+
         live_vehicles = []
 
     # --------------------------------------------------
-    # 2. Preparar contexto controlado para OpenAI
+    # 3. Preparar contexto controlado para OpenAI
     # --------------------------------------------------
 
     if live_vehicles:
@@ -306,6 +475,8 @@ def chat(request: ChatRequest):
                     f"{vehicle['next_stop_name']}; "
                     f"distancia aproximada "
                     f"{vehicle['distance_to_next_stop_m']} metros; "
+                    f"avance de la unidad "
+                    f"{vehicle['progress_pct']}%; "
                     f"ETA estimado por el modelo ML "
                     f"{vehicle['eta_minutes']} minutos "
                     f"({vehicle['eta_seconds']} segundos)."
@@ -324,39 +495,100 @@ def chat(request: ChatRequest):
         )
 
     # --------------------------------------------------
-    # 3. OpenAI explica los resultados
+    # 4. Instrucciones especializadas para OpenAI
     # --------------------------------------------------
 
     instructions = """
-Eres el asistente del proyecto CDMX Bus ETA.
+Eres el asistente especializado del proyecto CDMX Bus ETA.
 
-Tu función es explicar al usuario información del
-sistema de transporte que ya fue calculada por el
-backend.
+Tu función EXCLUSIVA es ayudar al usuario con información
+relacionada con este proyecto de transporte público y con
+los datos proporcionados por su backend.
 
-REGLAS IMPORTANTES:
+PUEDES HABLAR SOBRE:
 
-- No inventes rutas, paradas, posiciones ni tiempos.
+- CDMX Bus ETA.
+- Metrobús de la Ciudad de México dentro del contexto
+  disponible en el proyecto.
+- Rutas incluidas en el sistema.
+- Unidades observadas por GTFS-Realtime.
+- Próximas paradas.
+- Distancias mostradas por el sistema.
+- Avance de las unidades.
+- ETA o tiempos estimados de llegada.
+- El modelo de Machine Learning utilizado para generar
+  las estimaciones.
+- GTFS y GTFS-Realtime cuando sea relevante al proyecto.
+- El funcionamiento general del proyecto cuando la
+  información necesaria esté disponible en el contexto.
+
+NO DEBES RESPONDER preguntas que no estén relacionadas
+con CDMX Bus ETA o con el dominio del proyecto.
+
+Ejemplos de temas que debes rechazar:
+
+- Historia general.
+- Cultura general.
+- Matemáticas que no tengan relación con el proyecto.
+- Recetas.
+- Deportes.
+- Política.
+- Entretenimiento.
+- Preguntas personales.
+- Programación no relacionada con este proyecto.
+- Cualquier otro tema ajeno al sistema.
+
+Si el usuario hace una pregunta fuera del alcance,
+responde ÚNICAMENTE:
+
+"Solo puedo ayudarte con consultas relacionadas con
+CDMX Bus ETA, Metrobús CDMX, las rutas del proyecto,
+unidades disponibles, próximas paradas y estimaciones
+de llegada."
+
+REGLAS SOBRE LOS DATOS:
+
+- No inventes rutas.
+- No inventes paradas.
+- No inventes posiciones.
+- No inventes unidades.
+- No inventes tiempos.
 - No calcules un ETA por tu cuenta.
-- Los ETA proporcionados fueron generados por un
-  modelo de Machine Learning del proyecto.
-- Utiliza únicamente los datos incluidos en
-  CONTEXTO DEL SISTEMA para hablar de información
-  realtime.
-- Si el contexto no contiene la información
-  necesaria para responder, dilo claramente.
+- Los ETA proporcionados fueron generados por el modelo
+  de Machine Learning del proyecto.
+- Utiliza únicamente los datos incluidos en CONTEXTO DEL
+  SISTEMA para hablar de información realtime.
+- Si el contexto no contiene la información necesaria,
+  dilo claramente.
+- Si no existen observaciones realtime válidas, no
+  inventes unidades para responder.
 - No afirmes que un ETA es exacto.
 - Describe los ETA como estimaciones.
-- Responde en español de forma clara y breve.
+- Responde en español.
+- Sé claro y breve.
 """
+
+    # --------------------------------------------------
+    # 5. Construir prompt
+    # --------------------------------------------------
 
     prompt = f"""
 PREGUNTA DEL USUARIO:
+
 {request.message}
 
+RUTA SELECCIONADA:
+
+{request.route_id or "No especificada"}
+
 CONTEXTO DEL SISTEMA:
+
 {system_context}
 """
+
+    # --------------------------------------------------
+    # 6. Consultar OpenAI
+    # --------------------------------------------------
 
     try:
 
@@ -379,16 +611,32 @@ CONTEXTO DEL SISTEMA:
             "answer":
                 "No fue posible consultar el asistente "
                 "en este momento.",
+
             "realtime_count":
                 len(live_vehicles),
+
+            "out_of_scope":
+                False,
         }
+
+    # --------------------------------------------------
+    # 7. RESPUESTA
+    # --------------------------------------------------
 
     return {
         "answer": answer,
-        "realtime_count": len(
-            live_vehicles
-        ),
+
+        "realtime_count":
+            len(live_vehicles),
+
+        "out_of_scope":
+            False,
     }
+
+
+# ==================================================
+# DATOS EN TIEMPO REAL
+# ==================================================
 
 @app.get("/live")
 def live_vehicles(
@@ -401,7 +649,10 @@ def live_vehicles(
     parada y estima el ETA con el modelo ML.
     """
 
-    limit = max(1, min(limit, 100))
+    limit = max(
+        1,
+        min(limit, 100),
+    )
 
     vehicles = get_live_vehicles(
         route_id=route_id,
