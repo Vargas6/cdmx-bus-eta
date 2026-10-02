@@ -654,12 +654,20 @@ def live_vehicles(
         min(limit, 100),
     )
 
-    vehicles = get_live_vehicles(
-        route_id=route_id,
-        limit=limit,
-    )
+    try:
+        vehicles = get_live_vehicles(
+            route_id=route_id,
+            limit=limit,
+        )
 
-    return {
-        "count": len(vehicles),
-        "vehicles": vehicles,
-    }
+        return {
+            "count": len(vehicles),
+            "vehicles": vehicles,
+        }
+
+    except Exception as exc:
+        print(
+            f"ERROR /api/live: "
+            f"{type(exc).__name__}: {exc}"
+        )
+        raise
