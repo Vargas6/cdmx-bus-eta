@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
+
 import {
   MapContainer,
   TileLayer,
@@ -6,13 +8,14 @@ import {
   Popup,
   useMap,
 } from "react-leaflet";
+
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "./App.css";
 
 const API_URL =
   import.meta.env.VITE_API_URL ||
-  (import.meta.env.PROD ? "/api" : "http://127.0.0.1:8000");
+  (import.meta.env.PROD ? "/api" : "http://127.0.0.1:8000/api");
 
 
 // ==================================================
@@ -668,7 +671,7 @@ function App() {
               </div>
             )}
 
-            {chatAnswer && (
+{chatAnswer && (
               <div className="chat-answer">
 
                 <div className="assistant-icon small">
@@ -681,9 +684,11 @@ function App() {
                     Respuesta del asistente
                   </strong>
 
-                  <p>
-                    {chatAnswer}
-                  </p>
+                  <div className="chat-markdown">
+                    <ReactMarkdown>
+                      {chatAnswer}
+                    </ReactMarkdown>
+                  </div>
 
                   <span className="chat-disclaimer">
                     Los tiempos mostrados son estimaciones

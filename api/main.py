@@ -64,18 +64,18 @@ app = FastAPI(
 # ==================================================
 # CORS
 # ==================================================
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 # ==================================================
 # CARGAR MODELO ETA
@@ -515,12 +515,34 @@ PUEDES HABLAR SOBRE:
 - Próximas paradas.
 - Distancias mostradas por el sistema.
 - Avance de las unidades.
-- ETA o tiempos estimados de llegada.
+- ETA o tiempos estimados de llegada A LA PRÓXIMA PARADA.
 - El modelo de Machine Learning utilizado para generar
   las estimaciones.
 - GTFS y GTFS-Realtime cuando sea relevante al proyecto.
 - El funcionamiento general del proyecto cuando la
   información necesaria esté disponible en el contexto.
+
+ALCANCE DEL ETA:
+
+- El modelo actual predice EXCLUSIVAMENTE el tiempo estimado
+  de llegada de cada unidad a su próxima parada.
+- Un ETA incluido en CONTEXTO DEL SISTEMA siempre corresponde
+  a la próxima parada indicada para esa unidad.
+- No interpretes ese ETA como tiempo hasta la terminal,
+  destino final de la ruta o cualquier parada posterior.
+- Si el usuario pregunta "¿cuánto falta para que lleguen?",
+  "¿cuánto tarda?", "¿cuál llega primero?" o una pregunta
+  similar sin mencionar un destino final, utiliza los ETA
+  disponibles y aclara que corresponden a las próximas
+  paradas de las unidades.
+- Si el usuario pregunta por el tiempo hasta el destino final,
+  terminal, fin de la ruta o una parada posterior a la próxima,
+  explica claramente que el modelo actual no calcula ese tiempo.
+- En ese caso puedes indicar el ETA disponible a la próxima
+  parada, si resulta útil, pero NO extrapoles ni calcules el
+  tiempo restante hasta el destino solicitado.
+- Nunca sumes tiempos ni estimes cuánto tardaría una unidad
+  en recorrer varias paradas.
 
 NO DEBES RESPONDER preguntas que no estén relacionadas
 con CDMX Bus ETA o con el dominio del proyecto.
@@ -564,10 +586,13 @@ REGLAS SOBRE LOS DATOS:
   inventes unidades para responder.
 - No afirmes que un ETA es exacto.
 - Describe los ETA como estimaciones.
+- Cuando muestres varias unidades, identifica claramente
+  la próxima parada correspondiente a cada ETA.
+- No presentes el ETA de una unidad como si fuera el ETA
+  general de toda la ruta.
 - Responde en español.
 - Sé claro y breve.
 """
-
     # --------------------------------------------------
     # 5. Construir prompt
     # --------------------------------------------------
