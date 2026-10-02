@@ -1,69 +1,137 @@
 from pathlib import Path
+
 import os
+
 import pickle
+
 import re
 
+
+
 import pandas as pd
+
 from dotenv import load_dotenv
+
 from fastapi import FastAPI, HTTPException
+
 from fastapi.middleware.cors import CORSMiddleware
+
 from openai import OpenAI
+
 from pydantic import BaseModel
+
+
 
 from api.realtime_service import get_live_vehicles
 
 
+
+
+
 # ==================================================
+
 # RUTAS DEL PROYECTO
+
 # ==================================================
+
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
+
+
 DATA = ROOT / "api" / "data"
+
+
 
 MODEL_PATH = ROOT / "api" / "models" / "eta_model.pkl"
 
 
+
+
+
 # ==================================================
+
 # VARIABLES DE ENTORNO
+
 # ==================================================
+
+
 
 load_dotenv(ROOT / ".env")
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+
 
 if not OPENAI_API_KEY:
+
     raise RuntimeError(
+
         "No se encontró OPENAI_API_KEY en .env"
+
     )
 
 
+
+
+
 # ==================================================
+
 # CLIENTE OPENAI
+
 # ==================================================
+
+
 
 openai_client = OpenAI(
+
     api_key=OPENAI_API_KEY
+
 )
 
 
+
+
+
 # ==================================================
+
 # FASTAPI
+
 # ==================================================
+
+
 
 app = FastAPI(
+
     title="CDMX Bus ETA API",
+
     description=(
+
         "API experimental para estimación de tiempos "
+
         "de llegada de Metrobús CDMX."
+
     ),
+
     version="0.1.0",
+
 )
 
 
+
+
+
 # ==================================================
+
 # CORS
+
 # ==================================================
+
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -77,622 +145,1430 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ==================================================
-# CARGAR MODELO ETA
+
+
+
+
 # ==================================================
 
+# CARGAR MODELO ETA
+
+# ==================================================
+
+
+
 with open(MODEL_PATH, "rb") as f:
+
     eta_model = pickle.load(f)
 
 
+
+
+
 # ==================================================
+
 # CARGAR CATÁLOGOS
+
 # ==================================================
+
+
 
 routes = pd.read_csv(
+
     DATA / "routes.csv",
+
     dtype={
+
         "route_id": str,
+
     },
+
 )
+
+
 
 stops = pd.read_csv(
+
     DATA / "route_stops_mapped.csv",
+
     dtype={
+
         "route_id": str,
+
         "stop_id": str,
+
         "shape_id": str,
+
     },
+
 )
 
 
-# ==================================================
-# MODELOS DE ENTRADA
+
+
+
 # ==================================================
 
+# MODELOS DE ENTRADA
+
+# ==================================================
+
+
+
 class ETARequest(BaseModel):
+
     route_id: str
+
     next_stop_id: str
+
     distance_to_next_stop_m: float
+
     progress_pct: float
+
     hour_decimal: float
 
 
+
+
+
 class ChatRequest(BaseModel):
+
     message: str
+
     route_id: str | None = None
 
 
-# ==================================================
-# CONFIGURACIÓN DEL ASISTENTE
+
+
+
 # ==================================================
 
+# CONFIGURACIÓN DEL ASISTENTE
+
+# ==================================================
+
+
+
 OUT_OF_SCOPE_MESSAGE = (
+
     "Solo puedo ayudarte con consultas relacionadas con "
+
     "CDMX Bus ETA, Metrobús CDMX, las rutas del proyecto, "
+
     "unidades disponibles, próximas paradas y estimaciones "
+
     "de llegada."
+
 )
 
 
+
+
+
 # Palabras y expresiones directamente relacionadas
+
 # con el dominio del proyecto.
+
 PROJECT_TERMS = [
+
     "metrobus",
+
     "metrobús",
+
     "ruta",
+
     "rutas",
+
     "unidad",
+
     "unidades",
+
     "autobus",
+
     "autobús",
+
     "camion",
+
     "camión",
+
     "parada",
+
     "paradas",
+
     "eta",
+
     "llegada",
+
     "llegar",
+
     "tiempo",
+
     "tarda",
+
     "tardar",
+
     "distancia",
+
     "avance",
+
     "gtfs",
+
     "gtfs-rt",
+
     "realtime",
+
     "tiempo real",
+
     "transporte",
+
     "cdmx",
+
     "bus",
+
     "modelo",
+
     "machine learning",
+
     "prediccion",
+
     "predicción",
+
     "estimacion",
+
     "estimación",
+
     "mapa",
+
     "ubicacion",
+
     "ubicación",
+
     "siguiente",
+
     "proxima",
+
     "próxima",
+
     "cerca",
+
     "cercana",
+
     "cercano",
+
 ]
+
+
+
 
 
 # Preguntas cortas que tienen sentido cuando ya existe
+
 # una ruta seleccionada.
+
 CONTEXTUAL_TERMS = [
+
     "cuanto falta",
+
     "cuánto falta",
+
     "cuanto tarda",
+
     "cuánto tarda",
+
     "cual llega",
+
     "cuál llega",
+
     "cual esta",
+
     "cuál está",
+
     "donde esta",
+
     "dónde está",
+
     "hay alguna",
+
     "hay uno",
+
     "hay una",
+
     "que sigue",
+
     "qué sigue",
+
     "mas cerca",
+
     "más cerca",
+
     "primero",
+
 ]
 
 
+
+
+
 def normalize_text(text: str) -> str:
-    """
-    Normaliza texto para realizar una validación básica
-    del dominio del chatbot.
+
     """
 
+    Normaliza texto para realizar una validación básica
+
+    del dominio del chatbot.
+
+    """
+
+
+
     return re.sub(
+
         r"\s+",
+
         " ",
+
         text.lower().strip(),
+
     )
 
 
+
+
+
 def is_project_question(
+
     message: str,
+
     route_id: str | None = None,
+
 ) -> bool:
+
     """
+
     Filtro preliminar.
 
+
+
     No pretende comprender lenguaje natural por completo.
+
     Su función es bloquear preguntas evidentemente ajenas
+
     al proyecto antes de realizar una llamada a OpenAI.
+
     """
+
+
 
     normalized = normalize_text(message)
 
+
+
     if not normalized:
+
         return False
 
+
+
     if any(
+
         term in normalized
+
         for term in PROJECT_TERMS
+
     ):
+
         return True
 
+
+
     if route_id and any(
+
         term in normalized
+
         for term in CONTEXTUAL_TERMS
+
     ):
+
         return True
+
+
 
     return False
 
 
+
+
+
 # ==================================================
+
 # HEALTH CHECK
+
 # ==================================================
+
+
 
 @app.get("/api/health")
+
 def health():
 
+
+
     return {
+
         "status": "ok",
+
         "model_loaded": True,
+
         "openai_configured": True,
+
     }
 
 
+
+
+
 # ==================================================
+
 # RUTAS
+
 # ==================================================
+
+
 
 @app.get("/api/routes")
+
 def get_routes():
 
+
+
     columns = [
+
         "route_id",
+
         "route_short_name",
+
         "route_long_name",
+
     ]
 
+
+
     available = [
+
         column
+
         for column in columns
+
+        if column in routes.columns
+
+    ]
+
+
+
+    result = (
+
+        routes[available]
+
+        .drop_duplicates()
+
+        .fillna("")
+
+        .to_dict(orient="records")
+
+    )
+
+
+
+    return result
+
+
+
+
+
+# ==================================================
+
+# PARADAS POR RUTA
+
+# ==================================================
+
+
+
+@app.get("/api/routes/{route_id}/stops")
+
+def get_route_stops(route_id: str):
+
+
+
+    route_data = stops[
+
+        stops["route_id"] == route_id
+
+    ].copy()
+
+
+
+    if route_data.empty:
+
+        raise HTTPException(
+
+            status_code=404,
+
+            detail="Ruta no encontrada",
+
+        )
+
+
+
+    route_data = (
+
+        route_data
+
+        .sort_values("stop_sequence")
+
+        .drop_duplicates("stop_id")
+
+    )
+
+
+
+    columns = [
+
+        "stop_id",
+
+        "stop_name",
+
+        "stop_lat",
+
+        "stop_lon",
+
+        "stop_sequence",
+
+    ]
+
+
+
+    result = (
+
+        route_data[columns]
+
+        .fillna("")
+
+        .to_dict(orient="records")
+
+    )
+
+
+
+    return result
+
+
+# ============================================================
+# BÚSQUEDA GEOGRÁFICA
+# ============================================================
+
+def haversine_distance_m(lat1, lon1, lat2, lon2):
+    """
+    Calcula la distancia aproximada en metros entre dos
+    coordenadas geográficas usando la fórmula de Haversine.
+    """
+    from math import radians, sin, cos, sqrt, atan2
+
+    earth_radius_m = 6371000
+
+    lat1_rad = radians(lat1)
+    lon1_rad = radians(lon1)
+    lat2_rad = radians(lat2)
+    lon2_rad = radians(lon2)
+
+    delta_lat = lat2_rad - lat1_rad
+    delta_lon = lon2_rad - lon1_rad
+
+    a = (
+        sin(delta_lat / 2) ** 2
+        + cos(lat1_rad)
+        * cos(lat2_rad)
+        * sin(delta_lon / 2) ** 2
+    )
+
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+    return earth_radius_m * c
+
+
+@app.get("/api/nearby")
+def get_nearby_routes(
+    lat: float,
+    lon: float,
+    radius_m: int = 1000,
+    limit: int = 10,
+):
+    """
+    Busca rutas de Metrobús que tengan al menos una parada
+    cercana a la ubicación indicada por el usuario.
+    """
+
+    if radius_m <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="radius_m debe ser mayor que 0.",
+        )
+
+    if limit <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="limit debe ser mayor que 0.",
+        )
+
+    nearby_stops = stops.copy()
+
+    nearby_stops["distance_m"] = nearby_stops.apply(
+        lambda row: haversine_distance_m(
+            lat,
+            lon,
+            float(row["stop_lat"]),
+            float(row["stop_lon"]),
+        ),
+        axis=1,
+    )
+
+    nearby_stops = nearby_stops[
+        nearby_stops["distance_m"] <= radius_m
+    ].copy()
+
+    if nearby_stops.empty:
+        return {
+            "user_location": {
+                "lat": lat,
+                "lon": lon,
+            },
+            "radius_m": radius_m,
+            "count": 0,
+            "routes": [],
+        }
+
+    # Conservamos únicamente la parada más cercana
+    # encontrada para cada ruta.
+    nearest_by_route = (
+        nearby_stops.sort_values("distance_m")
+        .drop_duplicates(subset=["route_id"])
+        .head(limit)
+        .copy()
+    )
+
+    route_columns = [
+        column
+        for column in [
+            "route_id",
+            "route_short_name",
+            "route_long_name",
+        ]
         if column in routes.columns
     ]
 
-    result = (
-        routes[available]
-        .drop_duplicates()
-        .fillna("")
-        .to_dict(orient="records")
+    route_catalog = (
+        routes[route_columns]
+        .drop_duplicates(subset=["route_id"])
+        .copy()
     )
 
-    return result
-
-
-# ==================================================
-# PARADAS POR RUTA
-# ==================================================
-
-@app.get("/api/routes/{route_id}/stops")
-def get_route_stops(route_id: str):
-
-    route_data = stops[
-        stops["route_id"] == route_id
-    ].copy()
-
-    if route_data.empty:
-        raise HTTPException(
-            status_code=404,
-            detail="Ruta no encontrada",
-        )
-
-    route_data = (
-        route_data
-        .sort_values("stop_sequence")
-        .drop_duplicates("stop_id")
+    nearest_by_route = nearest_by_route.merge(
+        route_catalog,
+        on="route_id",
+        how="left",
     )
 
-    columns = [
-        "stop_id",
-        "stop_name",
-        "stop_lat",
-        "stop_lon",
-        "stop_sequence",
-    ]
+    results = []
 
-    result = (
-        route_data[columns]
-        .fillna("")
-        .to_dict(orient="records")
-    )
-
-    return result
-
-
-# ==================================================
-# PREDICCIÓN ETA
-# ==================================================
-
-@app.post("/api/eta")
-def predict_eta(request: ETARequest):
-
-    if request.distance_to_next_stop_m < 0:
-        raise HTTPException(
-            status_code=400,
-            detail="La distancia no puede ser negativa",
-        )
-
-    if not 0 <= request.progress_pct <= 100:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "progress_pct debe estar "
-                "entre 0 y 100"
-            ),
-        )
-
-    if not 0 <= request.hour_decimal < 24:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "hour_decimal debe estar "
-                "entre 0 y 24"
-            ),
-        )
-
-    X = pd.DataFrame(
-        [
+    for _, row in nearest_by_route.iterrows():
+        results.append(
             {
-                "distance_to_next_stop_m":
-                    request.distance_to_next_stop_m,
-
-                "progress_pct":
-                    request.progress_pct,
-
-                "hour_decimal":
-                    request.hour_decimal,
-
-                "route_id":
-                    request.route_id,
-
-                "next_stop_id":
-                    request.next_stop_id,
+                "route_id": str(row["route_id"]),
+                "route_short_name": (
+                    ""
+                    if pd.isna(row.get("route_short_name"))
+                    else str(row.get("route_short_name"))
+                ),
+                "route_long_name": (
+                    ""
+                    if pd.isna(row.get("route_long_name"))
+                    else str(row.get("route_long_name"))
+                ),
+                "nearest_stop": {
+                    "stop_id": str(row["stop_id"]),
+                    "stop_name": str(row["stop_name"]),
+                    "lat": float(row["stop_lat"]),
+                    "lon": float(row["stop_lon"]),
+                    "distance_m": round(
+                        float(row["distance_m"]),
+                        1,
+                    ),
+                },
+                "transport_type": "Metrobús",
             }
-        ]
-    )
-
-    prediction = float(
-        eta_model.predict(X)[0]
-    )
-
-    prediction = max(
-        0.25,
-        min(20.0, prediction),
-    )
+        )
 
     return {
-        "route_id":
-            request.route_id,
+        "user_location": {
+            "lat": lat,
+            "lon": lon,
+        },
+        "radius_m": radius_m,
+        "count": len(results),
+        "routes": results,
+    }
 
-        "next_stop_id":
-            request.next_stop_id,
 
-        "distance_to_next_stop_m":
-            request.distance_to_next_stop_m,
+# ============================================================
+# PUNTOS DE INICIO DE RECORRIDO
+# ============================================================
 
-        "eta_minutes":
-            round(prediction, 2),
+@app.get("/api/origins")
+def get_route_origins():
+    """
+    Devuelve los puntos de inicio de recorrido presentes
+    en el GTFS y las rutas asociadas a cada uno.
+    """
 
-        "eta_seconds":
-            round(prediction * 60),
+    starts = stops[
+        stops["stop_sequence"] == 1
+    ].copy()
 
-        "model":
-            "HistGradientBoostingRegressor",
+    route_columns = [
+        column
+        for column in [
+            "route_id",
+            "route_short_name",
+            "route_long_name",
+        ]
+        if column in routes.columns
+    ]
+
+    route_catalog = (
+        routes[route_columns]
+        .drop_duplicates(subset=["route_id"])
+        .copy()
+    )
+
+    starts = starts.merge(
+        route_catalog,
+        on="route_id",
+        how="left",
+    )
+
+    result = []
+
+    for stop_name, group in starts.groupby(
+        "stop_name",
+        sort=True,
+    ):
+        first = group.iloc[0]
+
+        origin_routes = []
+
+        for _, row in group.iterrows():
+            origin_routes.append(
+                {
+                    "route_id": str(row["route_id"]),
+                    "route_short_name": (
+                        ""
+                        if pd.isna(row.get("route_short_name"))
+                        else str(row.get("route_short_name"))
+                    ),
+                    "route_long_name": (
+                        ""
+                        if pd.isna(row.get("route_long_name"))
+                        else str(row.get("route_long_name"))
+                    ),
+                }
+            )
+
+        result.append(
+            {
+                "stop_name": str(stop_name),
+                "lat": float(first["stop_lat"]),
+                "lon": float(first["stop_lon"]),
+                "route_count": len(origin_routes),
+                "routes": origin_routes,
+            }
+        )
+
+    return {
+        "count": len(result),
+        "origins": result,
     }
 
 
 # ==================================================
-# CHATBOT OPENAI
+
+# PREDICCIÓN ETA
+
 # ==================================================
 
+
+
+@app.post("/api/eta")
+
+def predict_eta(request: ETARequest):
+
+
+
+    if request.distance_to_next_stop_m < 0:
+
+        raise HTTPException(
+
+            status_code=400,
+
+            detail="La distancia no puede ser negativa",
+
+        )
+
+
+
+    if not 0 <= request.progress_pct <= 100:
+
+        raise HTTPException(
+
+            status_code=400,
+
+            detail=(
+
+                "progress_pct debe estar "
+
+                "entre 0 y 100"
+
+            ),
+
+        )
+
+
+
+    if not 0 <= request.hour_decimal < 24:
+
+        raise HTTPException(
+
+            status_code=400,
+
+            detail=(
+
+                "hour_decimal debe estar "
+
+                "entre 0 y 24"
+
+            ),
+
+        )
+
+
+
+    X = pd.DataFrame(
+
+        [
+
+            {
+
+                "distance_to_next_stop_m":
+
+                    request.distance_to_next_stop_m,
+
+
+
+                "progress_pct":
+
+                    request.progress_pct,
+
+
+
+                "hour_decimal":
+
+                    request.hour_decimal,
+
+
+
+                "route_id":
+
+                    request.route_id,
+
+
+
+                "next_stop_id":
+
+                    request.next_stop_id,
+
+            }
+
+        ]
+
+    )
+
+
+
+    prediction = float(
+
+        eta_model.predict(X)[0]
+
+    )
+
+
+
+    prediction = max(
+
+        0.25,
+
+        min(20.0, prediction),
+
+    )
+
+
+
+    return {
+
+        "route_id":
+
+            request.route_id,
+
+
+
+        "next_stop_id":
+
+            request.next_stop_id,
+
+
+
+        "distance_to_next_stop_m":
+
+            request.distance_to_next_stop_m,
+
+
+
+        "eta_minutes":
+
+            round(prediction, 2),
+
+
+
+        "eta_seconds":
+
+            round(prediction * 60),
+
+
+
+        "model":
+
+            "HistGradientBoostingRegressor",
+
+    }
+
+
+
+
+
+# ==================================================
+
+# CHATBOT OPENAI
+
+# ==================================================
+
+
+
 @app.post("/api/chat")
+
 def chat(request: ChatRequest):
 
+
+
     # --------------------------------------------------
+
     # 1. Validar que la pregunta pertenezca al proyecto
+
     # --------------------------------------------------
+
+
 
     if not is_project_question(
+
         request.message,
+
         request.route_id,
+
     ):
+
         return {
+
             "answer": OUT_OF_SCOPE_MESSAGE,
+
             "realtime_count": 0,
+
             "out_of_scope": True,
+
         }
 
-    # --------------------------------------------------
-    # 2. Obtener información REAL del sistema
+
+
     # --------------------------------------------------
 
+    # 2. Obtener información REAL del sistema
+
+    # --------------------------------------------------
+
+
+
     try:
+
         live_vehicles = get_live_vehicles(
+
             route_id=request.route_id,
+
             limit=10,
+
         )
+
+
 
     except Exception as exc:
 
+
+
         print(
+
             "Error obteniendo información realtime:",
+
             type(exc).__name__,
+
         )
+
+
 
         live_vehicles = []
 
+
+
     # --------------------------------------------------
+
     # 3. Preparar contexto controlado para OpenAI
+
     # --------------------------------------------------
+
+
 
     if live_vehicles:
 
+
+
         context_lines = []
+
+
 
         for vehicle in live_vehicles:
 
+
+
             context_lines.append(
+
                 (
+
                     f"Ruta {vehicle['route_id']} "
+
                     f"({vehicle['route_name']}): "
+
                     f"próxima parada "
+
                     f"{vehicle['next_stop_name']}; "
+
                     f"distancia aproximada "
+
                     f"{vehicle['distance_to_next_stop_m']} metros; "
+
                     f"avance de la unidad "
+
                     f"{vehicle['progress_pct']}%; "
+
                     f"ETA estimado por el modelo ML "
+
                     f"{vehicle['eta_minutes']} minutos "
+
                     f"({vehicle['eta_seconds']} segundos)."
+
                 )
+
             )
 
+
+
         system_context = "\n".join(
+
             context_lines
+
         )
+
+
 
     else:
 
+
+
         system_context = (
+
             "No hay observaciones realtime válidas "
+
             "disponibles para esta consulta."
+
         )
 
+
+
     # --------------------------------------------------
+
     # 4. Instrucciones especializadas para OpenAI
+
     # --------------------------------------------------
+
+
 
     instructions = """
+
 Eres el asistente especializado del proyecto CDMX Bus ETA.
 
+
+
 Tu función EXCLUSIVA es ayudar al usuario con información
+
 relacionada con este proyecto de transporte público y con
+
 los datos proporcionados por su backend.
+
+
 
 PUEDES HABLAR SOBRE:
 
-- CDMX Bus ETA.
-- Metrobús de la Ciudad de México dentro del contexto
+
+
+\- CDMX Bus ETA.
+
+\- Metrobús de la Ciudad de México dentro del contexto
+
   disponible en el proyecto.
-- Rutas incluidas en el sistema.
-- Unidades observadas por GTFS-Realtime.
-- Próximas paradas.
-- Distancias mostradas por el sistema.
-- Avance de las unidades.
-- ETA o tiempos estimados de llegada A LA PRÓXIMA PARADA.
-- El modelo de Machine Learning utilizado para generar
+
+\- Rutas incluidas en el sistema.
+
+\- Unidades observadas por GTFS-Realtime.
+
+\- Próximas paradas.
+
+\- Distancias mostradas por el sistema.
+
+\- Avance de las unidades.
+
+\- ETA o tiempos estimados de llegada.
+
+\- El modelo de Machine Learning utilizado para generar
+
   las estimaciones.
-- GTFS y GTFS-Realtime cuando sea relevante al proyecto.
-- El funcionamiento general del proyecto cuando la
+
+\- GTFS y GTFS-Realtime cuando sea relevante al proyecto.
+
+\- El funcionamiento general del proyecto cuando la
+
   información necesaria esté disponible en el contexto.
 
-ALCANCE DEL ETA:
 
-- El modelo actual predice EXCLUSIVAMENTE el tiempo estimado
-  de llegada de cada unidad a su próxima parada.
-- Un ETA incluido en CONTEXTO DEL SISTEMA siempre corresponde
-  a la próxima parada indicada para esa unidad.
-- No interpretes ese ETA como tiempo hasta la terminal,
-  destino final de la ruta o cualquier parada posterior.
-- Si el usuario pregunta "¿cuánto falta para que lleguen?",
-  "¿cuánto tarda?", "¿cuál llega primero?" o una pregunta
-  similar sin mencionar un destino final, utiliza los ETA
-  disponibles y aclara que corresponden a las próximas
-  paradas de las unidades.
-- Si el usuario pregunta por el tiempo hasta el destino final,
-  terminal, fin de la ruta o una parada posterior a la próxima,
-  explica claramente que el modelo actual no calcula ese tiempo.
-- En ese caso puedes indicar el ETA disponible a la próxima
-  parada, si resulta útil, pero NO extrapoles ni calcules el
-  tiempo restante hasta el destino solicitado.
-- Nunca sumes tiempos ni estimes cuánto tardaría una unidad
-  en recorrer varias paradas.
 
 NO DEBES RESPONDER preguntas que no estén relacionadas
+
 con CDMX Bus ETA o con el dominio del proyecto.
+
+
 
 Ejemplos de temas que debes rechazar:
 
-- Historia general.
-- Cultura general.
-- Matemáticas que no tengan relación con el proyecto.
-- Recetas.
-- Deportes.
-- Política.
-- Entretenimiento.
-- Preguntas personales.
-- Programación no relacionada con este proyecto.
-- Cualquier otro tema ajeno al sistema.
+
+
+\- Historia general.
+
+\- Cultura general.
+
+\- Matemáticas que no tengan relación con el proyecto.
+
+\- Recetas.
+
+\- Deportes.
+
+\- Política.
+
+\- Entretenimiento.
+
+\- Preguntas personales.
+
+\- Programación no relacionada con este proyecto.
+
+\- Cualquier otro tema ajeno al sistema.
+
+
 
 Si el usuario hace una pregunta fuera del alcance,
+
 responde ÚNICAMENTE:
 
+
+
 "Solo puedo ayudarte con consultas relacionadas con
+
 CDMX Bus ETA, Metrobús CDMX, las rutas del proyecto,
+
 unidades disponibles, próximas paradas y estimaciones
+
 de llegada."
+
+
 
 REGLAS SOBRE LOS DATOS:
 
-- No inventes rutas.
-- No inventes paradas.
-- No inventes posiciones.
-- No inventes unidades.
-- No inventes tiempos.
-- No calcules un ETA por tu cuenta.
-- Los ETA proporcionados fueron generados por el modelo
+
+
+\- No inventes rutas.
+
+\- No inventes paradas.
+
+\- No inventes posiciones.
+
+\- No inventes unidades.
+
+\- No inventes tiempos.
+
+\- No calcules un ETA por tu cuenta.
+
+\- Los ETA proporcionados fueron generados por el modelo
+
   de Machine Learning del proyecto.
-- Utiliza únicamente los datos incluidos en CONTEXTO DEL
+
+\- Utiliza únicamente los datos incluidos en CONTEXTO DEL
+
   SISTEMA para hablar de información realtime.
-- Si el contexto no contiene la información necesaria,
+
+\- Si el contexto no contiene la información necesaria,
+
   dilo claramente.
-- Si no existen observaciones realtime válidas, no
+
+\- Si no existen observaciones realtime válidas, no
+
   inventes unidades para responder.
-- No afirmes que un ETA es exacto.
-- Describe los ETA como estimaciones.
-- Cuando muestres varias unidades, identifica claramente
-  la próxima parada correspondiente a cada ETA.
-- No presentes el ETA de una unidad como si fuera el ETA
-  general de toda la ruta.
-- Responde en español.
-- Sé claro y breve.
+
+\- No afirmes que un ETA es exacto.
+
+\- Describe los ETA como estimaciones.
+
+\- Responde en español.
+
+\- Sé claro y breve.
+
 """
-    # --------------------------------------------------
-    # 5. Construir prompt
+
+
+
     # --------------------------------------------------
 
+    # 5. Construir prompt
+
+    # --------------------------------------------------
+
+
+
     prompt = f"""
+
 PREGUNTA DEL USUARIO:
+
+
 
 {request.message}
 
+
+
 RUTA SELECCIONADA:
+
+
 
 {request.route_id or "No especificada"}
 
+
+
 CONTEXTO DEL SISTEMA:
 
+
+
 {system_context}
+
 """
 
+
+
     # --------------------------------------------------
+
     # 6. Consultar OpenAI
+
     # --------------------------------------------------
+
+
 
     try:
 
+
+
         response = openai_client.responses.create(
+
             model="gpt-5.6-luna",
+
             instructions=instructions,
+
             input=prompt,
+
         )
+
+
 
         answer = response.output_text
 
+
+
     except Exception as exc:
+
+
 
         print(
             "Error consultando OpenAI:",
             type(exc).__name__,
+            str(exc),
         )
 
+        print(
+            "Causa OpenAI:",
+            repr(exc.__cause__),
+        )
+
+
+
         return {
+
             "answer":
+
                 "No fue posible consultar el asistente "
+
                 "en este momento.",
 
+
+
             "realtime_count":
+
                 len(live_vehicles),
 
+
+
             "out_of_scope":
+
                 False,
+
         }
 
+
+
     # --------------------------------------------------
+
     # 7. RESPUESTA
+
     # --------------------------------------------------
+
+
 
     return {
+
         "answer": answer,
 
+
+
         "realtime_count":
+
             len(live_vehicles),
 
+
+
         "out_of_scope":
+
             False,
+
     }
 
 
+
+
+
 # ==================================================
+
 # DATOS EN TIEMPO REAL
+
 # ==================================================
+
+
 
 @app.get("/api/live")
+
 def live_vehicles(
+
     route_id: str | None = None,
+
     limit: int = 20,
+
 ):
+
     """
+
     Obtiene posiciones actuales de Metrobús,
+
     realiza map matching, identifica la próxima
+
     parada y estima el ETA con el modelo ML.
+
     """
+
+
 
     limit = max(
+
         1,
+
         min(limit, 100),
+
     )
 
+
+
     try:
+
         vehicles = get_live_vehicles(
+
             route_id=route_id,
+
             limit=limit,
+
         )
+
+
 
         return {
+
             "count": len(vehicles),
+
             "vehicles": vehicles,
+
         }
 
+
+
     except Exception as exc:
+
         print(
+
             f"ERROR /api/live: "
+
             f"{type(exc).__name__}: {exc}"
+
         )
+
         raise

@@ -68,6 +68,19 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
+  const [searchMode, setSearchMode] = useState("nearby");
+
+  const [nearbyRoutes, setNearbyRoutes] = useState([]);
+  const [nearbyLoading, setNearbyLoading] = useState(false);
+  const [nearbyError, setNearbyError] = useState("");
+  const [userLocation, setUserLocation] = useState(null);
+  const [locationSearched, setLocationSearched] = useState(false);
+
+  const [origins, setOrigins] = useState([]);
+  const [selectedOrigin, setSelectedOrigin] = useState("");
+  const [originRoutes, setOriginRoutes] = useState([]);
+  const [originsLoading, setOriginsLoading] = useState(false);
+  const [originsError, setOriginsError] = useState("");
 
   const [chatMessage, setChatMessage] = useState("");
   const [chatAnswer, setChatAnswer] = useState("");
@@ -93,6 +106,32 @@ function App() {
     loadRoutes();
   }, []);
 
+  useEffect(() => {
+    async function loadOrigins() {
+      setOriginsLoading(true);
+      setOriginsError("");
+  
+      try {
+        const response = await fetch(`${API_URL}/origins`);
+  
+        if (!response.ok) {
+          throw new Error("No fue posible cargar los puntos de partida.");
+        }
+  
+        const data = await response.json();
+  
+        setOrigins(data.origins || []);
+      } catch (err) {
+        setOriginsError(err.message);
+        setOrigins([]);
+      } finally {
+        setOriginsLoading(false);
+      }
+    }
+  
+    loadOrigins();
+  }, []);
+
   const sortedVehicles = useMemo(
     () =>
       [...vehicles].sort(
@@ -106,6 +145,154 @@ function App() {
     [routes, selectedRoute]
   );
 
+
+  async function searchNearbyRoutes(latitude, longitude) {
+    setNearbyLoading(true);
+    setNearbyError("");
+    setLocationSearched(false);
+    setNearbyRoutes([]);
+  
+    try {
+      const params = new URLSearchParams({
+        lat: latitude.toString(),
+        lon: longitude.toString(),
+        radius_m: "1500",
+        limit: "10",
+      });
+  
+      const response = await fetch(
+        `${API_URL}/nearby?${params.toString()}`
+      );
+  
+      if (!response.ok) {
+        throw new Error(
+          "No fue posible consultar las rutas cercanas."
+        );
+      }
+  
+      const data = await response.json();
+  
+      setUserLocation({
+        lat: latitude,
+        lon: longitude,
+      });
+  
+      setNearbyRoutes(data.routes || []);
+      setLocationSearched(true);
+    } catch (err) {
+      setNearbyError(err.message);
+      setNearbyRoutes([]);
+      setLocationSearched(false);
+    } finally {
+      setNearbyLoading(false);
+    }
+  }
+  
+  
+  function useCurrentLocation() {
+    setNearbyError("");
+  
+    if (!navigator.geolocation) {
+      setNearbyError(
+        "Tu navegador no permite obtener la ubicación."
+      );
+      return;
+    }
+  
+    setNearbyLoading(true);
+  
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        searchNearbyRoutes(
+          position.coords.latitude,
+          position.coords.longitude
+        );
+      },
+  
+      (geoError) => {
+        setNearbyLoading(false);
+  
+        if (geoError.code === 1) {
+          setNearbyError(
+            "No se concedió permiso para usar tu ubicación."
+          );
+        } else if (geoError.code === 2) {
+          setNearbyError(
+            "No fue posible determinar tu ubicación."
+          );
+        } else {
+          setNearbyError(
+            "La ubicación tardó demasiado en responder."
+          );
+        }
+      },
+  
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000,
+      }
+    );
+  }
+
+
+  function selectOrigin(originName) {
+    setSelectedOrigin(originName);
+    setVehicles([]);
+    setHasSearched(false);
+    setError("");
+    setChatAnswer("");
+    setChatError("");
+    setChatMessage("");
+  
+    if (!originName) {
+      setOriginRoutes([]);
+      return;
+    }
+  
+    const origin = origins.find(
+      (item) => item.stop_name === originName
+    );
+  
+    setOriginRoutes(origin?.routes || []);
+  }
+
+  async function selectNearbyRoute(routeId) {
+    setSelectedRoute(routeId);
+  
+    setVehicles([]);
+    setHasSearched(false);
+    setError("");
+  
+    setChatAnswer("");
+    setChatError("");
+    setChatMessage("");
+  
+    setLoading(true);
+  
+    try {
+      const response = await fetch(
+        `${API_URL}/live?route_id=${encodeURIComponent(routeId)}&limit=20`
+      );
+  
+      if (!response.ok) { 
+        throw new Error(
+          "No fue posible consultar los datos en tiempo real."
+        );
+      }
+  
+      const data = await response.json();
+  
+      setVehicles(data.vehicles || []);
+      setHasSearched(true);
+    } catch (err) {
+      setError(err.message);
+      setVehicles([]);
+      setHasSearched(false);
+    } finally {
+      setLoading(false);
+    }
+  }
   async function loadVehicles() {
     if (!selectedRoute) {
       setError("Selecciona una ruta primero.");
@@ -225,53 +412,370 @@ function App() {
       </header>
 
       <main>
-        <section className="search-panel">
-          <div className="search-copy">
-            <span className="search-icon">⌕</span>
+      <section className="search-panel location-search-panel">
+      <div className="search-copy">
+        <span className="search-icon">⌕</span>
+    
+        <div>
+          <span className="panel-kicker">
+            PLANEA TU VIAJE
+          </span>
+    
+          <h2>¿Desde dónde partes?</h2>
+    
+          <p className="search-description">
+            Encuentra rutas cercanas a tu ubicación o consulta
+            directamente una ruta de Metrobús.
+          </p>
+        </div>
+      </div>
+    
+      <div className="search-mode-tabs">
+        <button
+          type="button"
+          className={
+            searchMode === "nearby"
+              ? "search-mode active"
+              : "search-mode"
+          }
+          onClick={() => setSearchMode("nearby")}
+        >
+          <span>⌖</span>
+          Cerca de mí
+        </button>
+        <button
+  type="button"
+  className={
+    searchMode === "origin"
+      ? "search-mode active"
+      : "search-mode"
+  }
+  onClick={() => setSearchMode("origin")}
+>
+  <span>🚏</span>
+  Punto de partida
+</button>
+
+        <button
+          type="button"
+          className={
+            searchMode === "route"
+              ? "search-mode active"
+              : "search-mode"
+          }
+          onClick={() => setSearchMode("route")}
+        >
+          <span>🚌</span>
+          Buscar por ruta
+        </button>
+      </div>
+    
+
+
+
+    
+      {searchMode === "nearby" && (
+  <div className="nearby-search">
+    <div className="location-explanation">
+      <div className="location-icon">⌖</div>
+
+      <div>
+        <strong>Rutas cerca de ti</strong>
+
+        <p>
+          Utilizamos tu ubicación únicamente para calcular
+          qué paradas de Metrobús tienes más cerca.
+        </p>
+      </div>
+    </div>
+
+    <button
+      type="button"
+      className="primary-button location-button"
+      onClick={useCurrentLocation}
+      disabled={nearbyLoading}
+    >
+      {nearbyLoading
+        ? "Buscando rutas..."
+        : "Usar mi ubicación"}
+
+      <span aria-hidden="true">→</span>
+    </button>
+  </div>
+)}
+
+{searchMode === "origin" && (
+  <div className="origin-search">
+    <div className="field">
+      <label htmlFor="origin">
+        Punto de partida
+      </label>
+
+      <select
+        id="origin"
+        value={selectedOrigin}
+        onChange={(event) =>
+          selectOrigin(event.target.value)
+        }
+        disabled={originsLoading}
+      >
+        <option value="">
+          {originsLoading
+            ? "Cargando puntos..."
+            : "Selecciona un punto de partida"}
+        </option>
+
+        {origins.map((origin) => (
+          <option
+            key={origin.stop_name}
+            value={origin.stop_name}
+          >
+            {origin.stop_name} · {origin.route_count}{" "}
+            {origin.route_count === 1 ? "ruta" : "rutas"}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    {originsError && (
+      <div className="location-error">
+        {originsError}
+      </div>
+    )}
+
+    {selectedOrigin && (
+      <div className="origin-summary">
+        <strong>
+          {originRoutes.length}{" "}
+          {originRoutes.length === 1
+            ? "recorrido disponible"
+            : "recorridos disponibles"}
+        </strong>
+
+        <span>
+          desde {selectedOrigin}
+        </span>
+      </div>
+    )}
+  </div>
+)}
+
+{searchMode === "route" && (
+  <div className="search-controls">
+    <div className="field">
+      <label htmlFor="route">
+        Ruta de Metrobús
+      </label>
+
+      <select
+        id="route"
+        value={selectedRoute}
+        onChange={(event) => {
+          setSelectedRoute(event.target.value);
+          setVehicles([]);
+          setHasSearched(false);
+          setError("");
+          setChatAnswer("");
+          setChatError("");
+          setChatMessage("");
+        }}
+      >
+        <option value="">
+          Selecciona una ruta de Metrobús
+        </option>
+
+        {routes.map((route) => (
+          <option
+            key={route.route_id}
+            value={route.route_id}
+          >
+            Línea {route.route_short_name || "—"} ·{" "}
+            {route.route_long_name || route.route_id}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    <button
+      className="primary-button"
+      onClick={loadVehicles}
+      disabled={loading || !selectedRoute}
+    >
+      {loading
+        ? "Consultando..."
+        : "Buscar unidades"}
+
+      <span aria-hidden="true">→</span>
+    </button>
+  </div>
+)}
+
+{searchMode === "origin" &&
+  selectedOrigin &&
+  originRoutes.length > 0 && (
+    <div className="origin-route-list">
+      {originRoutes.map((route) => (
+        <article
+          className="origin-route-card"
+          key={route.route_id}
+        >
+          <div className="origin-route-info">
             <div>
-              <span className="panel-kicker">CONSULTA EN TIEMPO REAL</span>
-              <h2>¿Qué ruta quieres consultar?</h2>
+              <span className="transport-pill">
+                METROBÚS
+              </span>
+
+              {route.route_short_name && (
+                <span className="line-pill">
+                  Línea {route.route_short_name}
+                </span>
+              )}
             </div>
+
+            <h3>
+              {route.route_long_name ||
+                `Ruta ${route.route_id}`}
+            </h3>
+
+            <p>
+              Sale desde{" "}
+              <strong>{selectedOrigin}</strong>
+            </p>
           </div>
 
-          <div className="search-controls">
-            <div className="field">
-              <label htmlFor="route">Ruta de Metrobús</label>
-              <select
-                id="route"
-                value={selectedRoute}
-                onChange={(event) => {
-                  setSelectedRoute(event.target.value);
-                  setVehicles([]);
-                  setHasSearched(false);
-                  setError("");
-                  setChatAnswer("");
-                  setChatError("");
-                  setChatMessage("");
-                }}
-              >
-                <option value="">Selecciona una ruta de Metrobús</option>
+          <button
+            type="button"
+            className="nearby-route-button"
+            onClick={() =>
+              selectNearbyRoute(route.route_id)
+            }
+            disabled={loading}
+          >
+            Ver unidades
+            <span>→</span>
+          </button>
+        </article>
+      ))}
+    </div>
+  )}
+      {nearbyError && (
+        <div className="location-error">
+          {nearbyError}
+        </div>
+      )}
+    </section>
 
-                {routes.map((route) => (
-                  <option key={route.route_id} value={route.route_id}>
+
+
+    {searchMode === "nearby" &&
+      locationSearched && (
+        <section className="nearby-results">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">
+                CERCA DE TU UBICACIÓN
+              </p>
+    
+              <h2>Rutas que pasan cerca de ti</h2>
+    
+              <p className="section-description">
+                Ordenadas según la parada más cercana
+                encontrada en el GTFS.
+              </p>
+            </div>
+    
+            <span className="result-count">
+              {nearbyRoutes.length} rutas
+            </span>
+          </div>
+    
+          {nearbyRoutes.length > 0 ? (
+            <div className="nearby-grid">
+              {nearbyRoutes.map((route, index) => (
+                <article
+                  className="nearby-route-card"
+                  key={route.route_id}
+                >
+                  <div className="nearby-card-top">
+                    <div>
+                      <span className="transport-pill">
+                        METROBÚS
+                      </span>
+    
+                      {route.route_short_name && (
+                        <span className="line-pill">
+                          Línea {route.route_short_name}
+                        </span>
+                      )}
+                    </div>
+    
+                    <span className="nearby-order">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                  </div>
+    
+                  <h3>
                     {route.route_long_name ||
-                      route.route_short_name ||
-                      route.route_id}
-                  </option>
-                ))}
-              </select>
+                      `Ruta ${route.route_id}`}
+                  </h3>
+    
+                  <div className="nearest-stop-info">
+                    <span>PARADA MÁS CERCANA</span>
+    
+                    <strong>
+                      {route.nearest_stop.stop_name}
+                    </strong>
+    
+                    <p>
+                      A{" "}
+                      <b>
+                        {Math.round(
+                          route.nearest_stop.distance_m
+                        )}{" "}
+                        m
+                      </b>{" "}
+                      de la ubicación seleccionada
+                    </p>
+                  </div>
+    
+                  <button
+                    type="button"
+                    className="nearby-route-button"
+                    onClick={() =>
+                      selectNearbyRoute(route.route_id)
+                    }
+                    disabled={loading}
+                  >
+                    Consultar unidades
+                    <span>→</span>
+                  </button>
+                </article>
+              ))}
             </div>
-
-            <button
-              className="primary-button"
-              onClick={loadVehicles}
-              disabled={loading || !selectedRoute}
-            >
-              {loading ? "Consultando..." : "Buscar unidades"}
-              <span aria-hidden="true">→</span>
-            </button>
-          </div>
+          ) : (
+            <div className="empty-state">
+              <div className="empty-icon">⌖</div>
+    
+              <h3>
+                No encontramos rutas cercanas
+              </h3>
+    
+              <p>
+                No hay paradas dentro del radio de búsqueda.
+                Puedes intentar consultar una ruta manualmente.
+              </p>
+    
+              <button
+                type="button"
+                className="secondary-location-button"
+                onClick={() => setSearchMode("route")}
+              >
+                Buscar por ruta
+              </button>
+            </div>
+          )}
         </section>
+      )}
 
         {error && <div className="error-message">{error}</div>}
 
@@ -669,7 +1173,7 @@ function App() {
                   value={chatMessage}
                   onChange={(event) => setChatMessage(event.target.value)}
                   onKeyDown={(event) => {
-                    if (event.key === "Enter" && !chatLoading) {
+                    if (event.key === "Enter" && !chatLoading) {  
                       askAssistant();
                     }
                   }}
