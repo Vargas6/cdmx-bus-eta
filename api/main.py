@@ -30,7 +30,7 @@ MODEL_PATH = ROOT / "api" / "models" / "eta_model.pkl"
 
 load_dotenv(ROOT / ".env")
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 
 if not OPENAI_API_KEY:
     raise RuntimeError(
@@ -605,9 +605,6 @@ CONTEXTO DEL SISTEMA:
         print(
             "Error consultando OpenAI:",
             type(exc).__name__,
-            str(exc),
-            "CAUSA:",
-            repr(exc.__cause__),
         )
 
         return {
