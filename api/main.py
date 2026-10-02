@@ -605,6 +605,9 @@ CONTEXTO DEL SISTEMA:
         print(
             "Error consultando OpenAI:",
             type(exc).__name__,
+            str(exc),
+            "CAUSA:",
+            repr(exc.__cause__),
         )
 
         return {
