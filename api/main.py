@@ -256,7 +256,7 @@ def is_project_question(
 # HEALTH CHECK
 # ==================================================
 
-@app.get("/health")
+@app.get("/api/health")
 def health():
 
     return {
@@ -270,7 +270,7 @@ def health():
 # RUTAS
 # ==================================================
 
-@app.get("/routes")
+@app.get("/api/routes")
 def get_routes():
 
     columns = [
@@ -299,7 +299,7 @@ def get_routes():
 # PARADAS POR RUTA
 # ==================================================
 
-@app.get("/routes/{route_id}/stops")
+@app.get("/api/routes/{route_id}/stops")
 def get_route_stops(route_id: str):
 
     route_data = stops[
@@ -339,7 +339,7 @@ def get_route_stops(route_id: str):
 # PREDICCIÓN ETA
 # ==================================================
 
-@app.post("/eta")
+@app.post("/api/eta")
 def predict_eta(request: ETARequest):
 
     if request.distance_to_next_stop_m < 0:
@@ -421,7 +421,7 @@ def predict_eta(request: ETARequest):
 # CHATBOT OPENAI
 # ==================================================
 
-@app.post("/chat")
+@app.post("/api/chat")
 def chat(request: ChatRequest):
 
     # --------------------------------------------------
@@ -638,7 +638,7 @@ CONTEXTO DEL SISTEMA:
 # DATOS EN TIEMPO REAL
 # ==================================================
 
-@app.get("/live")
+@app.get("/api/live")
 def live_vehicles(
     route_id: str | None = None,
     limit: int = 20,
